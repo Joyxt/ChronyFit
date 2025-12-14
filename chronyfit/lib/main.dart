@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
+// Import du shader
+import 'background_anim.dart';
+
 void main() {
   runApp(
     MultiProvider(
@@ -15,7 +18,7 @@ void main() {
 }
 
 // --- THÈME ---
-const Color kBackgroundColor = Color(0xFF1E1E1E);
+const Color kBackgroundColor = Colors.transparent; // Transparent pour le shader
 const Color kTextColor = Colors.white;
 const Color kInputBackground = Color(0xFFD9D9D9);
 
@@ -33,7 +36,7 @@ class ChronyFitApp extends StatelessWidget {
         fontFamily: 'Roboto',
         colorScheme: const ColorScheme.dark(
           primary: Colors.blueAccent,
-          surface: kBackgroundColor,
+          surface: Color(0xFF1E1E1E),
         ),
         textTheme: const TextTheme(
           displayLarge: TextStyle(
@@ -123,7 +126,6 @@ class ChronoController extends ChangeNotifier {
     ];
   }
 
-  // --- ACTIONS ---
   void addChrono() {
     int nextColorIndex = (_items.length) % 5;
     _items.add(
@@ -162,8 +164,6 @@ class ChronoController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- TIMER LOGIC ---
-
   void startSequence() {
     if (_items.isEmpty) return;
 
@@ -197,7 +197,6 @@ class ChronoController extends ChangeNotifier {
           _currentIndex++;
           _timeLeft = _items[_currentIndex].durationSeconds;
         } else {
-          // Fin totale
           _isFinished = true;
           _timeLeft = 0;
           _timer?.cancel();
@@ -219,12 +218,11 @@ class ChronoController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // CORRECTION 3 : Le bouton Retour Menu doit aussi remettre _isFinished à false
   void quitToMenu() {
     _timer?.cancel();
     _isRunning = false;
     _isPaused = false;
-    _isFinished = false; // <--- AJOUT IMPORTANT
+    _isFinished = false;
     _currentIndex = 0;
     _timeLeft = _items.isNotEmpty ? _items[0].durationSeconds : 0;
     notifyListeners();
@@ -232,7 +230,6 @@ class ChronoController extends ChangeNotifier {
 
   void hardReset() {
     quitToMenu();
-    // _isFinished est déjà false grâce à quitToMenu
     _timeLeft = 0;
     _items = List.generate(
       5,
@@ -247,7 +244,6 @@ class ChronoController extends ChangeNotifier {
   }
 
   // --- IMPORT / EXPORT ---
-
   Future<String> exportToFile() async {
     try {
       String jsonString = jsonEncode(_items.map((e) => e.toJson()).toList());
@@ -309,24 +305,28 @@ class MainScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<ChronoController>();
 
-    // Si isFinished est false, on revient sur EditView
     bool showRunView = controller.isRunning || controller.isFinished;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              const HeaderWidget(),
-              const SizedBox(height: 20),
-              Expanded(child: showRunView ? const RunView() : const EditView()),
-              if (showRunView || controller.currentIndex > 0)
+    return BackgroundAnim(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                const HeaderWidget(),
                 const SizedBox(height: 20),
-              if (showRunView || controller.currentIndex > 0)
-                const BottomSequenceIndicator(),
-            ],
+                Expanded(
+                  child: showRunView ? const RunView() : const EditView(),
+                ),
+                if (showRunView || controller.currentIndex > 0)
+                  const SizedBox(height: 20),
+                if (showRunView || controller.currentIndex > 0)
+                  const BottomSequenceIndicator(),
+              ],
+            ),
           ),
         ),
       ),
@@ -446,12 +446,13 @@ class EditView extends StatelessWidget {
               return Container(
                 key: ValueKey(item.id),
                 margin: const EdgeInsets.only(bottom: 12.0),
-                padding: const EdgeInsets.only(right: 40.0),
+                padding: const EdgeInsets.only(right: 10.0),
                 child: Row(
                   children: [
                     CShapeIcon(colorIndex: item.colorIndex, size: 45),
                     const SizedBox(width: 10),
 
+                    // --- CARTOUCHE DU TEMPS ---
                     GestureDetector(
                       onTap: () => _showTimePicker(
                         context,
@@ -461,17 +462,27 @@ class EditView extends StatelessWidget {
                       ),
                       child: Container(
                         width: 70,
-                        height: 40,
+                        height: 45,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: kInputBackground,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white30, width: 1),
+                          color: const Color(0xFF000000).withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(2, 4),
+                            ),
+                          ],
                         ),
                         child: Text(
                           "${item.durationSeconds ~/ 60}:${(item.durationSeconds % 60).toString().padLeft(2, '0')}",
                           style: const TextStyle(
-                            color: Colors.black,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -480,53 +491,80 @@ class EditView extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
 
+                    // --- CARTOUCHE DU NOM AVEC BOUTON SUPPRIMER INCLUS ---
                     Expanded(
                       child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        height: 45,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFD9D9D9), Colors.white],
+                          color: const Color(0xFF000000).withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            width: 1,
                           ),
-                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(2, 4),
+                            ),
+                          ],
                         ),
-                        child: TextField(
-                          controller: TextEditingController(text: item.name),
-                          onChanged: (val) =>
-                              controller.updateChronoName(index, val),
-                          onSubmitted: (_) => controller.refresh(),
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            hintText: "Activité...",
-                            hintStyle: TextStyle(color: Colors.black54),
-                            contentPadding: EdgeInsets.only(bottom: 10),
-                          ),
+                        // Utilisation d'une STACK pour superposer le bouton supprimer
+                        child: Stack(
+                          alignment: Alignment.centerLeft,
+                          children: [
+                            // 1. Le champ texte
+                            TextField(
+                              controller: TextEditingController(
+                                text: item.name,
+                              ),
+                              onChanged: (val) =>
+                                  controller.updateChronoName(index, val),
+                              onSubmitted: (_) => controller.refresh(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                              cursorColor: Colors.blueAccent,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                hintText: "Activité...",
+                                hintStyle: TextStyle(color: Colors.white38),
+                                // Padding GAUCHE important pour éviter que le texte ne passe sous le bouton
+                                contentPadding: EdgeInsets.only(
+                                  left: 45, // Espace réservé pour le bouton
+                                  bottom: 8,
+                                  right: 10,
+                                ),
+                              ),
+                            ),
+
+                            // 2. Le bouton supprimer (Positionné à gauche)
+                            Positioned(
+                              left: 8, // Ancré à gauche
+                              child: GestureDetector(
+                                onTap: () => controller.removeChrono(index),
+                                child: Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF717171),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.black,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-
-                    const SizedBox(width: 10),
-
-                    GestureDetector(
-                      onTap: () => controller.removeChrono(index),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.black,
-                          size: 20,
-                        ),
-                      ),
-                    ),
+                    // Plus de bouton supprimer ici à la fin, pour laisser place au "Reorder Handle"
                   ],
                 ),
               );
@@ -618,7 +656,6 @@ class RunView extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<ChronoController>();
 
-    // Écran de fin
     if (controller.isFinished) {
       return Center(
         child: Column(
@@ -666,7 +703,6 @@ class RunView extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Timer Circulaire
         SizedBox(
           width: 250,
           height: 250,
@@ -679,11 +715,9 @@ class RunView extends StatelessWidget {
         ),
         const SizedBox(height: 30),
 
-        // CORRECTION 1 & 2 : Nom et Bouton Pause sur la même ligne
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Nom Activité
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
               decoration: BoxDecoration(
@@ -702,7 +736,6 @@ class RunView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 15),
-            // Bouton Pause à côté
             IconButton(
               iconSize: 45,
               onPressed: controller.togglePause,
@@ -719,7 +752,6 @@ class RunView extends StatelessWidget {
         ),
 
         const SizedBox(height: 20),
-        // Temps restant
         Text(
           "${controller.timeLeft ~/ 60}:${(controller.timeLeft % 60).toString().padLeft(2, '0')}",
           style: const TextStyle(
@@ -728,7 +760,6 @@ class RunView extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-        // J'ai retiré le gros bouton pause du bas qui causait l'overflow
       ],
     );
   }
@@ -818,7 +849,7 @@ class CShapeIcon extends StatelessWidget {
           width: size * 0.4,
           height: size * 0.4,
           decoration: const BoxDecoration(
-            color: kBackgroundColor,
+            color: Colors.transparent,
             shape: BoxShape.circle,
           ),
         ),
