@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-// Import du shader
-import 'background_anim.dart';
+// Imports des shaders
+import 'background_anim.dart'; // Le fond Pollen (Liste)
+import 'run_background_anim.dart'; // Le fond Néon (Run)
 
 void main() {
   runApp(
@@ -18,7 +19,8 @@ void main() {
 }
 
 // --- THÈME ---
-const Color kBackgroundColor = Colors.transparent; // Transparent pour le shader
+const Color kBackgroundColor =
+    Colors.transparent; // Transparent pour les shaders
 const Color kTextColor = Colors.white;
 const Color kInputBackground = Color(0xFFD9D9D9);
 
@@ -307,30 +309,33 @@ class MainScreen extends StatelessWidget {
 
     bool showRunView = controller.isRunning || controller.isFinished;
 
-    return BackgroundAnim(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                const HeaderWidget(),
+    Widget content = Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              const HeaderWidget(),
+              const SizedBox(height: 20),
+              Expanded(child: showRunView ? const RunView() : const EditView()),
+              if (showRunView || controller.currentIndex > 0)
                 const SizedBox(height: 20),
-                Expanded(
-                  child: showRunView ? const RunView() : const EditView(),
-                ),
-                if (showRunView || controller.currentIndex > 0)
-                  const SizedBox(height: 20),
-                if (showRunView || controller.currentIndex > 0)
-                  const BottomSequenceIndicator(),
-              ],
-            ),
+              if (showRunView || controller.currentIndex > 0)
+                const BottomSequenceIndicator(),
+            ],
           ),
         ),
       ),
     );
+
+    // SWITCH DE BACKGROUND
+    if (showRunView) {
+      return RunBackgroundAnim(child: content);
+    } else {
+      return BackgroundAnim(child: content);
+    }
   }
 }
 
@@ -491,7 +496,7 @@ class EditView extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
 
-                    // --- CARTOUCHE DU NOM AVEC BOUTON SUPPRIMER INCLUS ---
+                    // --- CARTOUCHE DU NOM (Stack pour le bouton supprimer) ---
                     Expanded(
                       child: Container(
                         height: 45,
@@ -510,11 +515,10 @@ class EditView extends StatelessWidget {
                             ),
                           ],
                         ),
-                        // Utilisation d'une STACK pour superposer le bouton supprimer
                         child: Stack(
                           alignment: Alignment.centerLeft,
                           children: [
-                            // 1. Le champ texte
+                            // Le champ texte
                             TextField(
                               controller: TextEditingController(
                                 text: item.name,
@@ -531,18 +535,17 @@ class EditView extends StatelessWidget {
                                 border: InputBorder.none,
                                 hintText: "Activité...",
                                 hintStyle: TextStyle(color: Colors.white38),
-                                // Padding GAUCHE important pour éviter que le texte ne passe sous le bouton
                                 contentPadding: EdgeInsets.only(
-                                  left: 45, // Espace réservé pour le bouton
+                                  left: 45, // Place pour le bouton
                                   bottom: 8,
                                   right: 10,
                                 ),
                               ),
                             ),
 
-                            // 2. Le bouton supprimer (Positionné à gauche)
+                            // Le bouton supprimer (à gauche)
                             Positioned(
-                              left: 8, // Ancré à gauche
+                              left: 8,
                               child: GestureDetector(
                                 onTap: () => controller.removeChrono(index),
                                 child: Container(
@@ -564,7 +567,6 @@ class EditView extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Plus de bouton supprimer ici à la fin, pour laisser place au "Reorder Handle"
                   ],
                 ),
               );
@@ -671,18 +673,41 @@ class RunView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () => controller.quitToMenu(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
+
+            // --- BOUTON RETOUR MENU MODIFIÉ (Style Verre Fumé) ---
+            GestureDetector(
+              onTap: () => controller.quitToMenu(),
+              child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 30,
                   vertical: 15,
                 ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF000000).withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(2, 4),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  "RETOUR MENU",
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              child: const Text("RETOUR MENU", style: TextStyle(fontSize: 18)),
             ),
+            // -----------------------------------------------------
           ],
         ),
       );
@@ -699,6 +724,9 @@ class RunView extends StatelessWidget {
       const Color(0xFFE976FF),
     ];
     final activeColor = colors[item.colorIndex % colors.length];
+
+    // CRÉATION DE LA COULEUR "PLUS LUMINEUSE"
+    final brightColor = Color.lerp(activeColor, Colors.white, 0.25)!;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -718,18 +746,28 @@ class RunView extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // --- CARTOUCHE NOM (Style Verre Fumé) ---
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.white.withValues(alpha: 0.7), Colors.white],
+                color: const Color(0xFF000000).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 6,
+                    offset: const Offset(2, 4),
+                  ),
+                ],
               ),
               child: Text(
                 item.name.isEmpty ? "..." : item.name,
                 style: const TextStyle(
-                  color: Colors.black,
+                  color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -752,12 +790,25 @@ class RunView extends StatelessWidget {
         ),
 
         const SizedBox(height: 20),
+        // --- COMPTE A REBOURS LUMINEUX ---
         Text(
           "${controller.timeLeft ~/ 60}:${(controller.timeLeft % 60).toString().padLeft(2, '0')}",
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 60,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: brightColor, // Texte plus lumineux
+            shadows: [
+              Shadow(
+                blurRadius: 20.0,
+                color: activeColor.withValues(alpha: 0.6),
+                offset: Offset.zero,
+              ),
+              Shadow(
+                blurRadius: 8.0,
+                color: activeColor.withValues(alpha: 0.8),
+                offset: Offset.zero,
+              ),
+            ],
           ),
         ),
       ],
@@ -765,7 +816,7 @@ class RunView extends StatelessWidget {
   }
 }
 
-// --- UTILITAIRES ---
+// --- UTILITAIRES (TimerPainter avec ombres) ---
 class TimerPainter extends CustomPainter {
   final Color color;
   final double progress;
@@ -778,9 +829,38 @@ class TimerPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     Offset center = Offset(size.width / 2, size.height / 2);
     double radius = size.width / 2;
+
+    // 1. Ombre globale
+    Path circlePath = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawShadow(
+      circlePath,
+      Colors.black.withValues(alpha: 0.5),
+      8.0,
+      true,
+    );
+
+    // 2. Fond du cercle
     paint.color = color.withValues(alpha: 0.3);
     canvas.drawCircle(center, radius, paint);
+
+    // 3. Ombre portée interne
+    Paint shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.4)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius).shift(const Offset(3, 3)),
+      -3.14159 / 2,
+      2 * 3.14159 * progress,
+      true,
+      shadowPaint,
+    );
+
+    // 4. Partie colorée
     paint.color = color;
+    paint.maskFilter = null;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -3.14159 / 2,
@@ -843,6 +923,13 @@ class CShapeIcon extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors[colorIndex % 5],
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(1, 2),
+          ),
+        ],
       ),
       child: Center(
         child: Container(
