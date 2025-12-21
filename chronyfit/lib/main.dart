@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data'; // Indispensable pour la sauvegarde Android
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -245,26 +246,26 @@ class ChronoController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- IMPORT / EXPORT ---
+  // --- IMPORT / EXPORT (CORRIGÉ POUR ANDROID) ---
   Future<String> exportToFile() async {
     try {
+      // 1. Création du JSON
       String jsonString = jsonEncode(_items.map((e) => e.toJson()).toList());
 
+      // 2. Conversion en Bytes (Octets) obligatoire pour Android
+      List<int> list = utf8.encode(jsonString);
+      Uint8List bytes = Uint8List.fromList(list);
+
+      // 3. Sauvegarde via le plugin
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'Enregistrer votre entrainement',
         fileName: 'mon_entrainement.json',
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        type: FileType.any, // 'any' est plus stable
+        bytes: bytes,
       );
 
       if (outputFile != null) {
-        if (!outputFile.toLowerCase().endsWith('.json')) {
-          outputFile = '$outputFile.json';
-        }
-
-        final file = File(outputFile);
-        await file.writeAsString(jsonString);
-        return "Sauvegardé : ${file.path.split(Platform.pathSeparator).last}";
+        return "Sauvegardé !";
       } else {
         return "Annulé";
       }
@@ -277,13 +278,22 @@ class ChronoController extends ChangeNotifier {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Choisir un fichier',
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        type: FileType.any, // Accepte tout pour éviter les filtres stricts
+        withData: true, // Important si on veut lire les bytes directement
       );
 
-      if (result != null && result.files.single.path != null) {
-        File file = File(result.files.single.path!);
-        String jsonString = await file.readAsString();
+      if (result != null) {
+        String jsonString;
+
+        // Lecture : Soit via le chemin (PC), soit via les bytes (Web/Certains Android)
+        if (result.files.single.path != null) {
+          File file = File(result.files.single.path!);
+          jsonString = await file.readAsString();
+        } else if (result.files.single.bytes != null) {
+          jsonString = utf8.decode(result.files.single.bytes!);
+        } else {
+          return "Impossible de lire le fichier";
+        }
 
         List<dynamic> jsonList = jsonDecode(jsonString);
         _items = jsonList.map((e) => ChronoItem.fromJson(e)).toList();
