@@ -17,6 +17,7 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.2.0
   file_picker: ^8.1.4
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -26,6 +27,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/beep.mp3 
 
   # Configuration des Shaders
   shaders:

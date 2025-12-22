@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data'; // Indispensable pour la sauvegarde Android
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:audioplayers/audioplayers.dart'; // Import pour le son
 
-// Imports des shaders
-import 'background_anim.dart'; // Le fond Pollen (Liste)
-import 'run_background_anim.dart'; // Le fond Néon (Run)
+// Imports des shaders (Assurez-vous que ces fichiers existent toujours)
+import 'background_anim.dart';
+import 'run_background_anim.dart';
 
 void main() {
   runApp(
@@ -20,10 +21,8 @@ void main() {
 }
 
 // --- THÈME ---
-const Color kBackgroundColor =
-    Colors.transparent; // Transparent pour les shaders
+const Color kBackgroundColor = Colors.transparent;
 const Color kTextColor = Colors.white;
-const Color kInputBackground = Color(0xFFD9D9D9);
 
 class ChronyFitApp extends StatelessWidget {
   const ChronyFitApp({super.key});
@@ -99,6 +98,9 @@ class ChronoController extends ChangeNotifier {
   int _timeLeft = 0;
   Timer? _timer;
 
+  // Lecteur Audio
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   bool get isRunning => _isRunning;
   bool get isPaused => _isPaused;
   bool get isFinished => _isFinished;
@@ -117,6 +119,15 @@ class ChronoController extends ChangeNotifier {
 
   ChronoController() {
     _initDemo();
+    _initAudio(); // Initialisation audio avancée
+  }
+
+  // --- INITIALISATION AUDIO OPTIMISÉE ---
+  Future<void> _initAudio() async {
+    // Mode Low Latency pour les sons courts (bips)
+    await _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
+    // Préchargement du fichier pour éviter le délai au premier bip
+    await _audioPlayer.setSource(AssetSource('beep.mp3'));
   }
 
   void _initDemo() {
@@ -127,6 +138,19 @@ class ChronoController extends ChangeNotifier {
       ChronoItem(id: '4', name: "Chill", durationSeconds: 120, colorIndex: 3),
       ChronoItem(id: '5', name: "Abdos", durationSeconds: 150, colorIndex: 4),
     ];
+  }
+
+  // --- LOGIQUE SONORE CORRIGÉE ---
+  void _playBeep() {
+    // On n'utilise pas 'await' ici pour ne pas bloquer le Timer.
+    // Si un son est déjà en cours, on le coupe pour relancer immédiatement le suivant.
+    if (_audioPlayer.state == PlayerState.playing) {
+      _audioPlayer.stop().then((_) {
+        _audioPlayer.play(AssetSource('beep.mp3'), volume: 1.0);
+      });
+    } else {
+      _audioPlayer.play(AssetSource('beep.mp3'), volume: 1.0);
+    }
   }
 
   void addChrono() {
@@ -195,6 +219,12 @@ class ChronoController extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_timeLeft > 0) {
         _timeLeft--;
+
+        // --- DÉTECTION DES 3 DERNIÈRES SECONDES (CORRIGÉ: inclut 0) ---
+        // Si il reste 3, 2, 1 ou 0 seconde, on fait un bip.
+        if (_timeLeft <= 3 && _timeLeft >= 0) {
+          _playBeep();
+        }
       } else {
         if (_currentIndex < _items.length - 1) {
           _currentIndex++;
@@ -246,21 +276,17 @@ class ChronoController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- IMPORT / EXPORT (CORRIGÉ POUR ANDROID) ---
+  // --- IMPORT / EXPORT ---
   Future<String> exportToFile() async {
     try {
-      // 1. Création du JSON
       String jsonString = jsonEncode(_items.map((e) => e.toJson()).toList());
-
-      // 2. Conversion en Bytes (Octets) obligatoire pour Android
       List<int> list = utf8.encode(jsonString);
       Uint8List bytes = Uint8List.fromList(list);
 
-      // 3. Sauvegarde via le plugin
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'Enregistrer votre entrainement',
         fileName: 'mon_entrainement.json',
-        type: FileType.any, // 'any' est plus stable
+        type: FileType.any,
         bytes: bytes,
       );
 
@@ -278,14 +304,12 @@ class ChronoController extends ChangeNotifier {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Choisir un fichier',
-        type: FileType.any, // Accepte tout pour éviter les filtres stricts
-        withData: true, // Important si on veut lire les bytes directement
+        type: FileType.any,
+        withData: true,
       );
 
       if (result != null) {
         String jsonString;
-
-        // Lecture : Soit via le chemin (PC), soit via les bytes (Web/Certains Android)
         if (result.files.single.path != null) {
           File file = File(result.files.single.path!);
           jsonString = await file.readAsString();
@@ -316,7 +340,6 @@ class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ChronoController>();
-
     bool showRunView = controller.isRunning || controller.isFinished;
 
     Widget content = Scaffold(
@@ -340,7 +363,6 @@ class MainScreen extends StatelessWidget {
       ),
     );
 
-    // SWITCH DE BACKGROUND
     if (showRunView) {
       return RunBackgroundAnim(child: content);
     } else {
@@ -461,10 +483,11 @@ class EditView extends StatelessWidget {
               return Container(
                 key: ValueKey(item.id),
                 margin: const EdgeInsets.only(bottom: 12.0),
-                padding: const EdgeInsets.only(right: 10.0),
+                padding: const EdgeInsets.only(right: 0.0),
                 child: Row(
                   children: [
-                    CShapeIcon(colorIndex: item.colorIndex, size: 45),
+                    // --- TAILLE RÉDUITE (32) ---
+                    CShapeIcon(colorIndex: item.colorIndex, size: 32),
                     const SizedBox(width: 10),
 
                     // --- CARTOUCHE DU TEMPS ---
@@ -506,7 +529,7 @@ class EditView extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
 
-                    // --- CARTOUCHE DU NOM (Stack pour le bouton supprimer) ---
+                    // --- CARTOUCHE DU NOM ---
                     Expanded(
                       child: Container(
                         height: 45,
@@ -528,7 +551,6 @@ class EditView extends StatelessWidget {
                         child: Stack(
                           alignment: Alignment.centerLeft,
                           children: [
-                            // Le champ texte
                             TextField(
                               controller: TextEditingController(
                                 text: item.name,
@@ -546,14 +568,12 @@ class EditView extends StatelessWidget {
                                 hintText: "Activité...",
                                 hintStyle: TextStyle(color: Colors.white38),
                                 contentPadding: EdgeInsets.only(
-                                  left: 45, // Place pour le bouton
+                                  left: 45,
                                   bottom: 8,
                                   right: 10,
                                 ),
                               ),
                             ),
-
-                            // Le bouton supprimer (à gauche)
                             Positioned(
                               left: 8,
                               child: GestureDetector(
@@ -574,6 +594,23 @@ class EditView extends StatelessWidget {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+
+                    // --- LA POIGNÉE DE DÉPLACEMENT ---
+                    const SizedBox(width: 10),
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: Container(
+                        width: 40,
+                        height: 45,
+                        alignment: Alignment.center,
+                        color: Colors.transparent,
+                        child: const Icon(
+                          Icons.drag_handle,
+                          color: Colors.white,
+                          size: 30,
                         ),
                       ),
                     ),
@@ -683,8 +720,6 @@ class RunView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
-
-            // --- BOUTON RETOUR MENU MODIFIÉ (Style Verre Fumé) ---
             GestureDetector(
               onTap: () => controller.quitToMenu(),
               child: Container(
@@ -717,7 +752,6 @@ class RunView extends StatelessWidget {
                 ),
               ),
             ),
-            // -----------------------------------------------------
           ],
         ),
       );
@@ -734,8 +768,6 @@ class RunView extends StatelessWidget {
       const Color(0xFFE976FF),
     ];
     final activeColor = colors[item.colorIndex % colors.length];
-
-    // CRÉATION DE LA COULEUR "PLUS LUMINEUSE"
     final brightColor = Color.lerp(activeColor, Colors.white, 0.25)!;
 
     return Column(
@@ -752,11 +784,9 @@ class RunView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 30),
-
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --- CARTOUCHE NOM (Style Verre Fumé) ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
               decoration: BoxDecoration(
@@ -798,15 +828,13 @@ class RunView extends StatelessWidget {
             ),
           ],
         ),
-
         const SizedBox(height: 20),
-        // --- COMPTE A REBOURS LUMINEUX ---
         Text(
           "${controller.timeLeft ~/ 60}:${(controller.timeLeft % 60).toString().padLeft(2, '0')}",
           style: TextStyle(
             fontSize: 60,
             fontWeight: FontWeight.bold,
-            color: brightColor, // Texte plus lumineux
+            color: brightColor,
             shadows: [
               Shadow(
                 blurRadius: 20.0,
@@ -826,7 +854,7 @@ class RunView extends StatelessWidget {
   }
 }
 
-// --- UTILITAIRES (TimerPainter avec ombres) ---
+// --- UTILITAIRES ---
 class TimerPainter extends CustomPainter {
   final Color color;
   final double progress;
@@ -840,7 +868,6 @@ class TimerPainter extends CustomPainter {
     Offset center = Offset(size.width / 2, size.height / 2);
     double radius = size.width / 2;
 
-    // 1. Ombre globale
     Path circlePath = Path()
       ..addOval(Rect.fromCircle(center: center, radius: radius));
     canvas.drawShadow(
@@ -850,11 +877,9 @@ class TimerPainter extends CustomPainter {
       true,
     );
 
-    // 2. Fond du cercle
     paint.color = color.withValues(alpha: 0.3);
     canvas.drawCircle(center, radius, paint);
 
-    // 3. Ombre portée interne
     Paint shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill
@@ -868,7 +893,6 @@ class TimerPainter extends CustomPainter {
       shadowPaint,
     );
 
-    // 4. Partie colorée
     paint.color = color;
     paint.maskFilter = null;
     canvas.drawArc(
