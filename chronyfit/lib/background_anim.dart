@@ -31,7 +31,7 @@ class _BackgroundAnimState extends State<BackgroundAnim>
 
   Future<void> _loadShader() async {
     try {
-      // Assure-toi que ce chemin correspond à ton fichier dans le dossier shaders
+      // Chemin vers le Shader
       final program = await FragmentProgram.fromAsset(
         'shaders/background.frag',
       );

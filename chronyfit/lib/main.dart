@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart'; // Import pour le son
 
-// Imports des shaders (Assurez-vous que ces fichiers existent toujours)
+// Imports des shaders
 import 'background_anim.dart';
 import 'run_background_anim.dart';
 
@@ -371,7 +371,7 @@ class MainScreen extends StatelessWidget {
   }
 }
 
-// --- HEADER ---
+// --- HEADER (MODIFIÉ POUR "NEXT") ---
 class HeaderWidget extends StatelessWidget {
   const HeaderWidget({super.key});
 
@@ -382,17 +382,21 @@ class HeaderWidget extends StatelessWidget {
     String statusText = "START";
     if (controller.isRunning || controller.isPaused) statusText = "STOP";
 
-    void showMsg(String msg) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-      );
-    }
+    // Détermine si on est en mode "Run" (Page chrono)
+    bool isRunMode =
+        controller.isRunning || controller.isFinished || controller.isPaused;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
+    // --- CONTENU DU BLOC GAUCHE ---
+    Widget leftContent;
+
+    if (isRunMode) {
+      // MODE RUN : On affiche le bloc "NEXT"
+      // On calcule l'index du prochain item
+      int nextIndex = controller.currentIndex + 1;
+
+      if (nextIndex < controller.items.length) {
+        final nextItem = controller.items[nextIndex];
+        leftContent = Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
             border: Border.all(color: Colors.white24),
@@ -402,25 +406,98 @@ class HeaderWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ActionButton(
-                text: "Save",
-                onTap: () async => showMsg(await controller.exportToFile()),
+              const Text(
+                "NEXT",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               ),
-              _ActionButton(
-                text: "Import",
-                onTap: () async => showMsg(await controller.importFromFile()),
-              ),
-              _ActionButton(
-                text: "Reset",
-                onTap: () {
-                  controller.hardReset();
-                  showMsg("Remise à zéro");
-                },
+              const SizedBox(height: 5),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Gommette 50% plus petite que celle du bas (40 * 0.5 = 20)
+                  CShapeIcon(colorIndex: nextItem.colorIndex, size: 20),
+                  const SizedBox(width: 8),
+                  // Texte 30% plus petit que l'exercice en cours (24 * 0.7 ≈ 17)
+                  Text(
+                    nextItem.name.isNotEmpty ? nextItem.name : "...",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17, // ~30% de moins que 24
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+        );
+      } else {
+        // S'il n'y a pas de prochain exercice, on n'affiche rien ou un placeholder
+        leftContent = const SizedBox(width: 10, height: 10);
+      }
+    } else {
+      // MODE EDIT : On affiche le menu Save / Import / Reset habituel
+      leftContent = Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.black38,
         ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ActionButton(
+              text: "Save",
+              onTap: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(await controller.exportToFile()),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+            _ActionButton(
+              text: "Import",
+              onTap: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(await controller.importFromFile()),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+            _ActionButton(
+              text: "Reset",
+              onTap: () {
+                controller.hardReset();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Remise à zéro"),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    }
 
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Le bloc de gauche (qui change selon le mode)
+        leftContent,
+
+        // Le bouton START / STOP (ne change pas)
         GestureDetector(
           onTap: () {
             if (controller.isRunning ||
